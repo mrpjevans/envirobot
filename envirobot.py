@@ -19,6 +19,17 @@ except ImportError:
 # Temperature
 from bme280 import BME280
 
+# Gas
+from enviroplus import gas
+
+# Light
+try:
+    # Transitional fix for breaking change in LTR559
+    from ltr559 import LTR559
+    ltr559 = LTR559()
+except ImportError:
+    import ltr559
+
 # Set up logging
 logging.basicConfig(
     format = '%(asctime)s %(levelname)-8s %(message)s',
@@ -46,7 +57,7 @@ cpu_temps = [get_cpu_temperature()] * 5
 
 # Main loop
 while True:
-
+    
     # Temperature
     cpu_temp = get_cpu_temperature()
     cpu_temps = cpu_temps[1:] + [cpu_temp]
@@ -55,12 +66,24 @@ while True:
     comp_temp = raw_temp - ((avg_cpu_temp - raw_temp) / cpu_factor)
     logging.info("T:{:04.1f}".format(comp_temp))
 
+    # Pressure
+    pressure = bme280.get_pressure()
+    logging.info("P:{:05.1f}".format(pressure))
+
+    # Humidity
+    humidity = bme280.get_humidity()
+    logging.info("H:{:05.1f}".format(humidity))
+
+    # Light
+    lux = ltr559.get_lux()
+
     # Create payload
-    payload = ("{} temp={:04.1f}").format(os.getenv("INFLUXDB_MEASUREMENT"), comp_temp)
+    payload = ("{} temp={:04.1f},lux={:05.02f},pressure={:05.02f},humidity={:05.02f}").format(os.getenv("INFLUXDB_MEASUREMENT"), comp_temp, lux, pressure, humidity)
     logging.info(payload)
 
     # Send to InfluxDB endpoint
     response = requests.post(endpoint, payload)
-    print(response)
+    logging.info(response)
     
+    logging.info("Waiting {} seconds".format(interval))
     time.sleep(interval)
